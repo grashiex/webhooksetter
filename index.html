@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Telegram Webhook Setter</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --card: #1a2332;
+      --text: #e7ecf3;
+      --muted: #8b9bb4;
+      --accent: #2aabee;
+      --ok: #3dd68c;
+      --err: #ff6b6b;
+      --border: #2d3a4f;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: radial-gradient(ellipse at top, #1a2a40 0%, var(--bg) 55%);
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .wrap {
+      width: 100%;
+      max-width: 440px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 28px 24px;
+      box-shadow: 0 20px 50px rgba(0,0,0,.35);
+    }
+    h1 {
+      margin: 0 0 6px;
+      font-size: 1.35rem;
+      font-weight: 650;
+    }
+    .sub {
+      margin: 0 0 22px;
+      color: var(--muted);
+      font-size: .9rem;
+      line-height: 1.45;
+    }
+    label {
+      display: block;
+      font-size: .8rem;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    input {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: #121a26;
+      color: var(--text);
+      font-size: .95rem;
+      margin-bottom: 14px;
+      outline: none;
+    }
+    input:focus { border-color: var(--accent); }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; }
+    button {
+      flex: 1;
+      min-width: 120px;
+      padding: 12px 16px;
+      border: none;
+      border-radius: 10px;
+      font-size: .95rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .primary { background: var(--accent); color: #fff; }
+    .primary:hover { filter: brightness(1.08); }
+    .ghost {
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border);
+    }
+    .ghost:hover { color: var(--text); border-color: var(--muted); }
+    button:disabled { opacity: .55; cursor: wait; }
+    #out {
+      margin-top: 18px;
+      padding: 12px 14px;
+      border-radius: 10px;
+      background: #121a26;
+      border: 1px solid var(--border);
+      font-family: ui-monospace, Consolas, monospace;
+      font-size: .78rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+      min-height: 64px;
+      color: var(--muted);
+    }
+    #out.ok { color: var(--ok); border-color: #2a5a44; }
+    #out.err { color: var(--err); border-color: #5a2a2a; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Telegram Webhook Setter</h1>
+    <p class="sub">Paste your bot token and Apps Script <code>/exec</code> URL, then set or check the webhook.</p>
+
+    <label for="token">Bot Token</label>
+    <input id="token" type="password" placeholder="123456:AA..." autocomplete="off" />
+
+    <label for="url">Webhook URL</label>
+    <input id="url" type="url" placeholder="https://script.google.com/macros/s/.../exec" />
+
+    <div class="row">
+      <button class="primary" id="btnSet" type="button">Set Webhook</button>
+      <button class="ghost" id="btnInfo" type="button">Get Info</button>
+      <button class="ghost" id="btnDel" type="button">Delete</button>
+    </div>
+
+    <div id="out">Ready.</div>
+  </div>
+
+  <script>
+    const tokenEl = document.getElementById('token');
+    const urlEl = document.getElementById('url');
+    const out = document.getElementById('out');
+    const buttons = [document.getElementById('btnSet'), document.getElementById('btnInfo'), document.getElementById('btnDel')];
+
+    function apiBase() {
+      const t = tokenEl.value.trim();
+      if (!t) throw new Error('Bot token is required.');
+      return 'https://api.telegram.org/bot' + encodeURIComponent(t).replace(/%3A/gi, ':');
+    }
+
+    function show(msg, type) {
+      out.textContent = typeof msg === 'string' ? msg : JSON.stringify(msg, null, 2);
+      out.className = type || '';
+    }
+
+    function busy(on) {
+      buttons.forEach(b => { b.disabled = on; });
+    }
+
+    async function call(path, body) {
+      busy(true);
+      try {
+        const res = await fetch(apiBase() + path, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: body ? JSON.stringify(body) : '{}'
+        });
+        const data = await res.json();
+        if (!data.ok) {
+          show(data, 'err');
+          return;
+        }
+        show(data, 'ok');
+      } catch (e) {
+        show(String(e.message || e), 'err');
+      } finally {
+        busy(false);
+      }
+    }
+
+    document.getElementById('btnSet').onclick = () => {
+      const url = urlEl.value.trim();
+      if (!url) {
+        show('Webhook URL is required.', 'err');
+        return;
+      }
+      call('/setWebhook', {
+        url: url,
+        drop_pending_updates: true,
+        allowed_updates: ['message']
+      });
+    };
+
+    document.getElementById('btnInfo').onclick = () => call('/getWebhookInfo');
+    document.getElementById('btnDel').onclick = () => call('/deleteWebhook', { drop_pending_updates: true });
+  </script>
+</body>
+</html>
